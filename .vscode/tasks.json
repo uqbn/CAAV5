@@ -1,0 +1,39 @@
+{
+  "version": "2.0.0",
+  "windows": {
+    "options": {
+      "cwd": "${workspaceFolder}/..",
+      "shell": {
+        "executable": "C:/Windows/system32/cmd.exe",
+        "args": [
+          "/C",
+          "call C:/PROGRA~2/RADE22/intel_a/code/command/tck_init.bat >NUL &",
+          "call tck_profile V5_6R2012_B22 >NUL &",
+        ]
+      }
+    }
+  },
+  "tasks": [
+    {
+      "type": "shell",
+      "label": "build",
+      "command": "mkmk -w -g -a & mkrtv -c",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+    },
+    {
+      "type": "shell",
+      "label": "clean",
+      "command": "mkRemoveDo",
+      "args": [
+        "-a",
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      }
+    },
+  ]
+}

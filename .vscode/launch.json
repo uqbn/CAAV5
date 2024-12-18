@@ -1,0 +1,27 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "CNEXT",
+      "type": "cppvsdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/../win_b64/code/bin/CNEXT.exe",
+      "args": [],
+      "cwd": "${workspaceFolder}/..",
+      "environment": [
+        {
+          "name": "PATH",
+          "value": "C:/Program Files/Dassault Systemes/B22/win_b64/code/bin;${env:PATH}"
+        },
+        {
+          "name": "CATDefaultEnvironment",
+          "value": "Workspace_Function"
+        },
+        {
+          "name": "CNEXTOUTPUT",
+          "value": "console"
+        }
+      ],
+    }
+  ]
+}
