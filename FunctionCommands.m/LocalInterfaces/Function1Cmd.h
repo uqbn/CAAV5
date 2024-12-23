@@ -18,7 +18,8 @@
 #ifndef Function1Cmd_H
 #define Function1Cmd_H
 
-#include "CATStateCommand.h"
+#include "CAAFunction.h"
+#include <CATStateCommand.h>
 
 //----------------------------------------------------------------------
 
@@ -47,8 +48,12 @@ public:
      */
     virtual void BuildGraph();
 
+    virtual CATBoolean ActionOne(void *data);
+
 private:
-    void *p_;
+    CATPathElementAgent *_daPathElement;
+    CATSoftwareConfiguration *pSoftConfig;
+    CATTopData TopData;
 };
 
 //----------------------------------------------------------------------

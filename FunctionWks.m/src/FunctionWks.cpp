@@ -40,7 +40,7 @@ FunctionWks::~FunctionWks()
 
 void FunctionWks::CreateCommands()
 {
-    new FunctionHdr("Function1Hdr", "FunctionCommands", "Function1Cmd", (void *)0);
+    new FunctionHdr("Function1Cmd", "FunctionCommands", "Function1Cmd", (void *)0);
 }
 
 CATCmdContainer *FunctionWks::CreateToolbars()
@@ -48,7 +48,7 @@ CATCmdContainer *FunctionWks::CreateToolbars()
     NewAccess(CATCmdContainer, pFunctionTlb, FunctionWks);
 
     NewAccess(CATCmdStarter, pCmdFunction1, Function1Str);
-    SetAccessCommand(pCmdFunction1, "Function1Hdr");
+    SetAccessCommand(pCmdFunction1, "Function1Cmd");
     SetAccessChild(pFunctionTlb, pCmdFunction1);
 
     AddToolbarView(pFunctionTlb, 1, Left);

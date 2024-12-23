@@ -24,6 +24,8 @@ Function1Cmd::Function1Cmd()
     : CATStateCommand("Function1Cmd", CATDlgEngOneShot, CATCommandModeExclusive)
 // Valid states are CATDlgEngOneShot and CATDlgEngRepeat
 {
+    pSoftConfig = new CATSoftwareConfiguration();
+    TopData.SetSoftwareConfiguration(pSoftConfig);
 }
 
 //-------------------------------------------------------------------------
@@ -31,54 +33,259 @@ Function1Cmd::Function1Cmd()
 //-------------------------------------------------------------------------
 Function1Cmd::~Function1Cmd()
 {
+    if (_daPathElement != NULL)
+        _daPathElement->RequestDelayedDestruction();
+    pSoftConfig->Release();
+    pSoftConfig = NULL;
 }
-
-#include <iostream>
-
-struct vector3
-{
-    double x_, y_, z_;
-    vector3(double x = 0, double y = 0, double z = 0)
-        : x_(x)
-        , y_(y)
-        , z_(z)
-    {
-    }
-    friend std::ostream &operator<<(std::ostream &s, vector3 const &v)
-    {
-        s << "(" << v.x_ << "," << v.y_ << "," << v.z_ << ")";
-        return s;
-    }
-};
-
-typedef void(__stdcall *CXX11_cross)(vector3 const *a, vector3 const *b, vector3 *c);
 
 //-------------------------------------------------------------------------
 // BuildGraph()
 //-------------------------------------------------------------------------
 void Function1Cmd::BuildGraph()
 {
-    vector3 a(1, 2, 3), b(3, 2, 1), c;
-    CXX11_cross cross;
+    _daPathElement = new CATPathElementAgent("Select Object");
+    _daPathElement->SetBehavior(CATDlgEngWithPSOHSO |
+                                CATDlgEngNewHSOManager);
+    CATDialogState *State0 = GetInitialState("Select Object");
+    State0->AddDialogAgent(_daPathElement);
+    AddTransition(State0, NULL,
+        IsOutputSetCondition(_daPathElement),
+        Action((ActionMethod)&Function1Cmd::ActionOne));
+}
 
-    HMODULE hmodule = LoadLibrary(L"CXX11");
-    if (hmodule == 0)
+#include <CATCGMTessEdgeIter.h>
+#include <CATCGMTessFanIter.h>
+#include <CATCGMTessPointIter.h>
+#include <CATCGMTessPolyIter.h>
+#include <CATCGMTessStripeIter.h>
+#include <CATCGMTessTrianIter.h>
+#include <CATFace.h>
+#include <CATICGMBodyTessellator.h>
+#include <vector>
+
+extern "C" void PCL_show(double *p, size_t n);
+
+void cloud_add(std::vector<double> &cloud, float const *a, float const *b)
+{
+    CATMathPoint Pa(a[0], a[1], a[2]);
+    CATMathPoint Pb(b[0], b[1], b[2]);
+    CATLONG32 N = (CATLONG32)Pb.DistanceTo(Pa);
+    CATMathVector V = (Pb - Pa) / N;
+    for (CATLONG32 n = 1; n < N; ++n)
     {
-        std::cout << "could not load the dynamic library" << std::endl;
-        goto fail;
+        CATMathPoint P = Pa + V * n;
+        cloud.push_back(P.GetX());
+        cloud.push_back(P.GetY());
+        cloud.push_back(P.GetZ());
+    }
+}
+
+CATBoolean Function1Cmd::ActionOne(void *data)
+{
+    CATIPrtPart_var iPart;
+    CATISpecObject_var iSpec;
+    CATPathElement *pPathElement = _daPathElement->GetValue();
+    IF_ERR(pPathElement == NULL, return FALSE);
+    for (int n = pPathElement->GetSize(); n--;)
+    {
+        if (iSpec == NULL)
+        {
+            iSpec = (*pPathElement)[n];
+        }
+        if (iPart == NULL)
+        {
+            iPart = (*pPathElement)[n];
+        }
+        if (iPart != NULL) { break; }
+    }
+    IF_BUG(iPart == NULL, return FALSE);
+
+    CATBody_var iBody = CAASpecToBody(iSpec);
+    IF_BUG(iBody == NULL, return FALSE);
+
+    CATGeoFactory_var GeoFactory = iBody->GetContainer();
+
+    CATListPtrCATCell ListEdge;
+    iBody->GetAllCells(ListEdge, 1);
+    CATListPtrCATCell ListFace;
+    iBody->GetAllCells(ListFace, 2);
+
+    std::vector<double> cloud;
+
+    CATICGMBodyTessellator *Opr = ::CATCGMCreateBodyTessellator(iBody, 0.1);
+    Opr->Run();
+    // for (int i = 1, i_ = ListEdge.Size(); i <= i_; ++i)
+    // {
+    //     CATEdge *Edge = (CATEdge *)ListEdge[i];
+    //     CATCGMTessEdgeIter *EdgeIter = NULL;
+    //     CATLONG32 NumberOfPoints = 0;
+    //     double *PointData = NULL;
+    //     Opr->GetEdge(Edge, NumberOfPoints, &PointData);
+    //     for (CATLONG32 ii = 0; ii < NumberOfPoints; ++ii)
+    //     {
+    //         cloud.push_back(PointData[3 * ii + 0]);
+    //         cloud.push_back(PointData[3 * ii + 1]);
+    //         cloud.push_back(PointData[3 * ii + 2]);
+    //     }
+    //     std::cout << i << ":" << NumberOfPoints << ":" << cloud.size() << "\n";
+    // }
+    for (int i = 1, i_ = ListFace.Size(); i <= i_; ++i)
+    {
+        CATFace *Face = (CATFace *)ListFace[i];
+        CATBoolean Plane;
+        CATCGMTessPointIter *PointIter;
+        CATCGMTessStripeIter *StripeIter;
+        CATCGMTessFanIter *FanIter;
+        CATCGMTessPolyIter *PolyIter;
+        CATCGMTessTrianIter *TrianIter;
+        Opr->GetFace(Face, Plane, &PointIter, &StripeIter, &FanIter, &PolyIter, &TrianIter);
+        CATLONG32 nPoint = PointIter->GetNbPoint();
+        float(*pPoint)[3] = new float[nPoint][3];
+        PointIter->GetPointXyzAll(pPoint);
+        for (CATLONG32 n = 1; n < nPoint; ++n)
+        {
+            cloud.push_back(pPoint[n][0]);
+            cloud.push_back(pPoint[n][1]);
+            cloud.push_back(pPoint[n][2]);
+        }
+
+        CATLONG32 ioNbPtsAll;
+        std::cout << "S: " << StripeIter->GetNbStri(ioNbPtsAll) << "\n";
+        std::cout << "F: " << FanIter->GetNbFan(ioNbPtsAll) << "\n";
+        std::cout << "P: " << PolyIter->GetNbPoly(ioNbPtsAll) << "\n";
+        std::cout << "T: " << TrianIter->GetNbTrian() << "\n";
+
+        for (StripeIter->Reset(); !StripeIter->IsExhausted(); StripeIter->GoToNext())
+        {
+            CATLONG32 nStrip = StripeIter->GetStriNbPts();
+            int *pStrip = new int[nStrip];
+            StripeIter->GetStriNuPts(pStrip);
+            for (int iStrip = 0; iStrip < nStrip - 1; ++iStrip)
+            {
+                cloud_add(cloud, pPoint[pStrip[iStrip]], pPoint[pStrip[iStrip + 1]]);
+                if (iStrip > 0)
+                {
+                    cloud_add(cloud, pPoint[pStrip[iStrip + 1]], pPoint[pStrip[iStrip - 1]]);
+                }
+            }
+            for (int iStrip = 0; iStrip < nStrip - 2; ++iStrip)
+            {
+                float const *a = pPoint[pStrip[iStrip + 0]];
+                float const *b = pPoint[pStrip[iStrip + 1]];
+                float const *c = pPoint[pStrip[iStrip + 2]];
+                CATMathPoint Pa(a[0], a[1], a[2]);
+                CATMathPoint Pb(b[0], b[1], b[2]);
+                CATMathPoint Pc(c[0], c[1], c[2]);
+                CATMathLine L(Pa, Pc);
+                CATLONG32 nL = (CATLONG32)L.DistanceTo(Pb);
+                CATMathVector Va = (Pb - Pa) / nL;
+                CATMathVector Vc = (Pb - Pc) / nL;
+                for (CATLONG32 iL = 1; iL < nL; ++iL)
+                {
+                    CATMathPoint P1 = Pa + Va * iL;
+                    CATMathPoint P2 = Pc + Vc * iL;
+                    CATLONG32 N = (CATLONG32)P1.DistanceTo(P2);
+                    CATMathVector V = (P2 - P1) / N;
+                    for (CATLONG32 n = 1; n < N; ++n)
+                    {
+                        CATMathPoint P = P1 + V * n;
+                        cloud.push_back(P.GetX());
+                        cloud.push_back(P.GetY());
+                        cloud.push_back(P.GetZ());
+                    }
+                }
+            }
+            delete pStrip;
+        }
+        for (FanIter->Reset(); !FanIter->IsExhausted(); FanIter->GoToNext())
+        {
+            CATLONG32 nFan = FanIter->GetFanNbPts();
+            int *pFan = new int[nFan];
+            FanIter->GetFanNuPts(pFan);
+            for (int iFan = 0; iFan < nFan - 2; ++iFan)
+            {
+                cloud_add(cloud, pPoint[pFan[0]], pPoint[pFan[iFan + 1]]);
+                cloud_add(cloud, pPoint[pFan[0]], pPoint[pFan[iFan + 2]]);
+            }
+            cloud_add(cloud, pPoint[pFan[0]], pPoint[pFan[nFan - 1]]);
+            for (int iFan = 0; iFan < nFan - 2; ++iFan)
+            {
+                float const *a = pPoint[pFan[0]];
+                float const *b = pPoint[pFan[iFan + 1]];
+                float const *c = pPoint[pFan[iFan + 2]];
+                CATMathPoint Pa(a[0], a[1], a[2]);
+                CATMathPoint Pb(b[0], b[1], b[2]);
+                CATMathPoint Pc(c[0], c[1], c[2]);
+                CATMathLine L(Pa, Pc);
+                CATLONG32 nL = (CATLONG32)L.DistanceTo(Pb);
+                CATMathVector Va = (Pb - Pa) / nL;
+                CATMathVector Vc = (Pb - Pc) / nL;
+                for (CATLONG32 iL = 1; iL < nL; ++iL)
+                {
+                    CATMathPoint P1 = Pa + Va * iL;
+                    CATMathPoint P2 = Pc + Vc * iL;
+                    CATLONG32 N = (CATLONG32)P1.DistanceTo(P2);
+                    CATMathVector V = (P2 - P1) / N;
+                    for (CATLONG32 n = 1; n < N; ++n)
+                    {
+                        CATMathPoint P = P1 + V * n;
+                        cloud.push_back(P.GetX());
+                        cloud.push_back(P.GetY());
+                        cloud.push_back(P.GetZ());
+                    }
+                }
+            }
+            delete pFan;
+        }
+        for (TrianIter->Reset(); !TrianIter->IsExhausted(); TrianIter->GoToNext())
+        {
+            int pTrian[3];
+            CATLONG32 nTrian = TrianIter->GetNbTrian();
+            TrianIter->GetTrianNuPts(pTrian);
+            cloud_add(cloud, pPoint[pTrian[0]], pPoint[pTrian[1]]);
+            cloud_add(cloud, pPoint[pTrian[1]], pPoint[pTrian[2]]);
+            cloud_add(cloud, pPoint[pTrian[2]], pPoint[pTrian[0]]);
+            float const *a = pPoint[pTrian[0]];
+            float const *b = pPoint[pTrian[1]];
+            float const *c = pPoint[pTrian[2]];
+            CATMathPoint Pa(a[0], a[1], a[2]);
+            CATMathPoint Pb(b[0], b[1], b[2]);
+            CATMathPoint Pc(c[0], c[1], c[2]);
+            CATMathLine L(Pa, Pc);
+            CATLONG32 nL = (CATLONG32)L.DistanceTo(Pb);
+            CATMathVector Va = (Pb - Pa) / nL;
+            CATMathVector Vc = (Pb - Pc) / nL;
+            for (CATLONG32 iL = 1; iL < nL; ++iL)
+            {
+                CATMathPoint P1 = Pa + Va * iL;
+                CATMathPoint P2 = Pc + Vc * iL;
+                CATLONG32 N = (CATLONG32)P1.DistanceTo(P2);
+                CATMathVector V = (P2 - P1) / N;
+                for (CATLONG32 n = 1; n < N; ++n)
+                {
+                    CATMathPoint P = P1 + V * n;
+                    cloud.push_back(P.GetX());
+                    cloud.push_back(P.GetY());
+                    cloud.push_back(P.GetZ());
+                }
+            }
+        }
+        delete[] pPoint;
+    }
+    Opr->Release();
+
+    for (size_t i = 0, n = cloud.size(); i < n; i += 3)
+    {
+        // std::cout << (i / 3) << ": " << cloud[i + 0] << "," << cloud[i + 1] << "," << cloud[i + 2] << "\n";
     }
 
-    cross = (CXX11_cross)GetProcAddress(hmodule, "CXX11_cross");
-    if (cross == 0)
-    {
-        std::cout << "could not locate the function" << std::endl;
-        goto fail;
-    }
+    std::cout << iBody->GetNbDomains() << std::endl;
+    std::cout << ListEdge.Size() << std::endl;
+    std::cout << ListFace.Size() << std::endl;
+    std::cout << cloud.size() << std::endl;
 
-    cross(&a, &b, &c);
-    std::cout << a << "^" << b << "=" << c << std::endl;
+    PCL_show(&cloud[0], cloud.size());
 
-fail:
-    FreeLibrary(hmodule);
-    RequestDelayedDestruction();
+    return true;
 }

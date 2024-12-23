@@ -44,6 +44,11 @@
         "tuple": "cpp",
         "type_traits": "cpp",
         "xfacet": "cpp",
-        "xtr1common": "cpp"
+        "xtr1common": "cpp",
+        "vector": "cpp",
+        "fstream": "cpp",
+        "iomanip": "cpp",
+        "xlocmon": "cpp",
+        "xloctime": "cpp"
     }
 }

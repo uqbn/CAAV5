@@ -14,7 +14,20 @@ BUILT_OBJECT_TYPE=SHARED LIBRARY
 WIZARD_LINK_MODULES = JS0GROUP
 # END WIZARD EDITION ZONE
 
-LINK_WITH = $(WIZARD_LINK_MODULES)
+LINK_WITH = $(WIZARD_LINK_MODULES) \
+	CATGeometricObjects \
+	CATGitInterfaces \
+	CATGMModelInterfaces \
+	CATGMOperatorsInterfaces \
+	CATInteractiveInterfaces \
+	CATMathematics \
+	CATMeasureGeometryInterfaces \
+	CATMecModInterfaces \
+	CATObjectModelerBase \
+	CATObjectSpecsModeler \
+	CATProductStructure1 \
+	CATViz \
+	KnowledgeItf
 
 # System dependant variables
 #
