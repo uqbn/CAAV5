@@ -5,17 +5,35 @@
             "name": "CNEXT",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "C:/Program Files/Dassault Systemes/B22/win_b64/code/bin/CNEXT.exe",
+            "program": "win_b64/code/bin/CNEXT.exe",
             "args": [],
             "cwd": "${workspaceFolder}/..",
             "environment": [
                 {
+                    "name": "PATH",
+                    "value": "C:/Program Files/Dassault Systemes/B22/win_b64/code/bin;${env:PATH}"
+                },
+                {
                     "name": "CATDefaultEnvironment",
-                    "value": "Workspace_Function"
+                    "value": "Workspace_Plugin"
                 },
                 {
                     "name": "CNEXTOUTPUT",
                     "value": "console"
+                }
+            ],
+        },
+        {
+            "name": "Run",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "win_b64/code/bin/CAAPluginRun.exe",
+            "args": [],
+            "cwd": "${workspaceFolder}/..",
+            "environment": [
+                {
+                    "name": "PATH",
+                    "value": "C:/Program Files/Dassault Systemes/B22/win_b64/code/bin;${env:PATH}"
                 }
             ],
         }
