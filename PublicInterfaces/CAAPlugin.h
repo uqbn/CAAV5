@@ -45,6 +45,8 @@ ExportedByCAAPlugin CATBody_var GetBodyOnSpec(CATISpecObject_var iSpec);
 ExportedByCAAPlugin CATBody *CreateSewSkin(CATGeoFactory *iGeoFactory, CATTopData *iTopData,
     CATBody *iTrimmingBody, CATBody *iSkinBody, CATBoolean iSimplifMode = TRUE, double iTolerance = 0.1);
 
+ExportedByCAAPlugin void AttachDomain(CATTopObject *oObject, CATTopObject *iObject);
+
 ExportedByCAAPlugin void RemoveCGM(CATGeoFactory *iGeoFactory, CATICGMObject *iObject,
     CATICGMContainer::CATRemovingDependancies iHow = CATICGMContainer::RemoveDependancies);
 

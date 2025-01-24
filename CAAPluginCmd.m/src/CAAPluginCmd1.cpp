@@ -81,6 +81,11 @@ void CAAPluginCmd1::BuildGraph()
 #include <CATCGMCreateTopologicalFillOp.h>
 #include <CATICGMTopologicalFillLight.h>
 
+#include <CATCGMPickOperator.h>
+#include <CATCGMPickOperatorPickedObject.h>
+#include <CATCGMPickOperatorResultIterator.h>
+#include <CATShell.h>
+
 #include <sstream>
 
 //-------------------------------------------------------------------------
@@ -107,6 +112,7 @@ CATBoolean CAAPluginCmd1::ActionOne(void *data)
 
     CATBody_var iBody = CAAPlugin::GetBodyOnSpec(iSpec);
     IF_ERR(iBody == NULL, return FALSE);
+    CAAPlugin::SaveCGM(iBody, "1");
 
     CATGeoFactory_var GeoFactory = iBody->GetContainer();
 
@@ -116,10 +122,61 @@ CATBoolean CAAPluginCmd1::ActionOne(void *data)
     CATMath3x3Matrix Matrix(1, 1, 0);
     MathTransfo.SetMatrix(Matrix);
 
+    {
+        int NbVertices, NbEdges, NbFaces, NbVolumes;
+        iBody->GetCellNumbers(&NbVertices, &NbEdges, &NbFaces, &NbVolumes);
+        std::cout << NbVertices << "," << NbEdges << "," << NbFaces << "," << NbVolumes << std::endl;
+    }
+
     CATBody_var oBody = GeoFactory->CreateBody();
     CATDomain_var oDomain = oBody->CreateDomain(2);
     oBody->AddDomain(oDomain);
     std::stringstream ss;
+
+    {
+        CATMathBox Box;
+        iBody->GetBoundingBox(Box);
+        double XMin, XMax, YMin, YMax, ZMin, ZMax;
+        Box.GetLimits(XMin, XMax, YMin, YMax, ZMin, ZMax);
+        CATMathPoint ViewPoint;
+        Box.GetBoxCenter(ViewPoint);
+        double X = ViewPoint.GetX() - XMin;
+        double Y = ViewPoint.GetY() - YMin;
+        CATMathVector ViewDirection(0, 0, -1);
+        ViewPoint.SetZ(ZMax);
+
+        CATCGMPickOperatorResultIterator *Iter = NULL;
+        CATCGMPickOperator *Opr = ::CATCGMCreatePickOperator(*pSoftConfig);
+        Opr->AddBody(*(CATBody *)iBody, CATMathTransformation(), oDomain, 1);
+        Opr->SetApertureRadius(_hypot(X, Y));
+        Opr->Run(ViewPoint, ViewDirection);
+        Opr->GetResult(Iter);
+
+        if (Iter)
+        {
+            int n = 0;
+            CATCGMPickOperatorResultIterator &It = *Iter;
+            for (It.Begin(); !It.End(); ++It)
+            {
+                CATGeometry *Geometry = NULL;
+                CATCGMPickOperatorPickedObject const *Picked = It.Get();
+                Picked->GetPickedGeometry(Geometry);
+                if (Geometry->IsAKindOf("CATFace"))
+                {
+                    void const *Domain = NULL;
+                    Picked->GetPartId(Domain);
+                    ((CATDomain *)Domain)->AddCell((CATCell *)Geometry);
+                    std::cout << ++n << Geometry->GetBoundingBox() << std::endl;
+                }
+            }
+            delete Iter;
+        }
+
+        delete Opr;
+    }
+    CAAPlugin::SaveCGM(oBody, "0");
+
+    return TRUE;
 
     CATListPtrCATBody ListBody;
     CATListPtrCATCell ListCell;
@@ -307,7 +364,6 @@ CATBoolean CAAPluginCmd1::ActionOne(void *data)
         std::cout << NbVertices << "," << NbEdges << "," << NbFaces << "," << NbVolumes << std::endl;
     }
 
-    CAAPlugin::SaveCGM(iBody, "1");
     CAAPlugin::SaveCGM(oBody, "0");
 
     CAAPlugin::RemoveCGM(GeoFactory, oBody);
